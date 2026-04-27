@@ -1,119 +1,300 @@
 # BASE
 
-BASE is the flight-control software for a balloon payload system. It runs on an Arduino/Teensy-style board and controls altitude-triggered release valves, heating pads, fan output, pressure sensing, temperature sensing, and SD-card logging.
+BASE is the flight-control system for a balloon payload. It runs on a Teensy microcontroller and manages sensing (altitude, temperature), actuation (release valves, heating pads, fan), and SD-card logging during the mission.
 
-## What this system does
+---
 
-During flight, BASE:
-1. Initializes sensors, servos, heating pads, fan, serial output, and SD logging.
-2. Measures baseline pressure before launch.
-3. Continuously estimates altitude from the MS5607 pressure sensor.
-4. Opens release valves at configured altitude thresholds.
-5. Controls heating pads using temperature thresholds.
-6. Logs mission data to `log.csv`.
-7. Stops hardware safely after the mission completes.
+# Quick Start (TL;DR)
 
-## Repository structure
+If you just want to build and upload the firmware:
 
-| File | Purpose |
-|---|---|
-| `BASE.ino` | Arduino entry point. Calls mission setup and loop updates. |
-| `Mission.h/.cpp` | Main mission coordinator and state machine. |
-| `Config.h` | Hardware pins, thresholds, timing, sensor constants, logging settings. |
-| `Altitude.h/.cpp` | MS5607 pressure sensor interface and altitude calculation. |
-| `Heating.h/.cpp` | Temperature sensors and heating pad control. |
-| `Release.h/.cpp` | Servo release valve and fan control. |
-| `Logging.h/.cpp` | SD-card CSV logging. |
-| `Events.h` | Shared event-recording helper. |
-| `Time.h` | Timing helper for periodic tasks. |
+1. Install **VS Code**
+2. Install the **PlatformIO extension**
+3. Clone this repo
+4. Plug in the Teensy
+5. Open the repo in VS Code
+6. Click **Upload** in PlatformIO
 
-## Hardware assumptions
+That’s it. See details below if anything fails.
 
-- Pressure sensor: MS5607 over I2C
-- Temperature sensors: Dallas/OneWire sensors
-- Release valves: 3 valves, 2 servos per valve
-- Heating pads: 2 pads
-- Fan: PWM + enable pin
-- Storage: SD card using `BUILTIN_SDCARD`
+---
 
-## Configuration
+# Repository Overview
 
-Most mission-specific values are in `Config.h`.
+```text
+BASE/
+  platformio.ini        ← build configuration (PlatformIO)
+  
+  firmware/             ← ALL microcontroller code
+    BASE/
+      main.cpp          ← entry point (runs on Teensy)
+      Config.h          ← all configuration
 
-Important settings:
-- `Config::Pins`: board pin assignments
-- `Config::HeatingPads`: heating thresholds and sensor mapping
-- `Config::ReleaseValves`: altitude thresholds, servo angles, cycle timing
-- `Config::Schedule`: update rates
-- `Config::Logging`: CSV filename and missing-value marker
+      mission/          ← mission logic / state machine
+      sensors/          ← altitude + temperature sensing
+      control/          ← heating, release valves, fan
+      logging/          ← SD card logging
+      common/           ← shared utilities
 
-Before flight, verify:
-- Release valve servo pins
-- Heating pad pins
-- Temperature sensor ordering
+  hardware/             ← CAD, wiring, schematics, calculations
+  docs/                 ← procedures, guides, mission details
+  data/                 ← sample logs and outputs
+```
+
+---
+
+# Firmware Setup (PlatformIO + Teensy)
+
+## 1. Install tools
+
+- Install **VS Code**
+- Install **PlatformIO extension** inside VS Code
+
+## 2. Clone the repository
+
+```bash
+git clone https://github.com/sps-coc/BASE.git
+cd BASE
+```
+
+## 3. Connect hardware
+
+- Plug in the Teensy via USB
+- Ensure it powers on
+
+## 4. Open project
+
+- Open the `BASE/` folder in VS Code
+- PlatformIO will automatically detect `platformio.ini`
+
+## 5. Build
+
+Click:
+
+```text
+PlatformIO sidebar → Project Tasks → teensy41 → Build
+```
+
+or run:
+
+```bash
+pio run
+```
+
+## 6. Upload
+
+Click:
+
+```text
+PlatformIO sidebar → Project Tasks → teensy41 → Upload
+```
+
+or run:
+
+```bash
+pio run --target upload
+```
+
+## 7. Serial monitor (optional)
+
+```bash
+pio device monitor
+```
+
+---
+
+# Important: Board Configuration
+
+The project is configured for:
+
+```ini
+board = teensy41
+```
+
+If you are using a different Teensy, change it in `platformio.ini`.
+
+Examples:
+
+```ini
+teensy40
+teensy36
+teensy35
+```
+
+---
+
+# System Architecture
+
+The firmware is organized by subsystem:
+
+- **Mission** → central state machine controlling flight behavior  
+- **Sensors**
+  - Altitude (pressure sensor)
+  - Temperature sensors  
+- **Control**
+  - Heating pads
+  - Release valves (servos)
+  - Fan  
+- **Logging**
+  - Writes CSV data to SD card  
+- **Common**
+  - Timing + event utilities  
+
+---
+
+# Mission Sequence
+
+1. Initialize hardware (sensors, servos, SD card)
+2. Record baseline pressure
+3. Begin logging to SD card
+4. Continuously estimate altitude
+5. Trigger release valves at configured thresholds
+6. Control heating pads based on temperature
+7. Run fan when required
+8. Complete mission and safely shut down
+
+---
+
+# Configuration
+
+All mission parameters are in:
+
+```text
+firmware/BASE/Config.h
+```
+
+This includes:
+
+- Pin assignments
 - Altitude thresholds
-- Servo open/closed angles
-- SD card availability
+- Temperature thresholds
+- Servo angles
+- Timing intervals
+- Logging settings
 
-## Mission sequence
+**You MUST verify these before flight.**
 
-1. Start hardware.
-2. Record baseline pressure.
-3. Begin logging.
-4. Sample altitude at the configured rate.
-5. Open each release valve after its altitude threshold is reached for enough samples.
-6. Keep the final valve open for the configured hold time.
-7. Close the final valve.
-8. Turn off hardware and enter safe idle.
+---
 
-## Log output
+# Logging
 
-The system writes `log.csv` to the SD card.
+The system writes:
 
-The log includes:
-- Mission time
-- Four external temperature sensor readings
-- Teensy/internal board temperature
-- Heating pad states and heating events
+```text
+log.csv
+```
+
+to the SD card.
+
+Includes:
+
+- Time
 - Altitude
-- Release valve states and release events
-- Fan state and fan events
+- Temperature readings
+- Heating states/events
+- Release valve states/events
+- Fan state
 
-## Dependencies
+---
 
-Install these Arduino libraries:
-- Servo
-- Wire
-- SD
-- OneWire
-- DallasTemperature
+# Testing Checklist (DO THIS BEFORE FLIGHT)
 
-Also use a board/platform that supports:
-- `BUILTIN_SDCARD`
-- `tempmonGetTemp()`
+## Basic checks
 
-## Build and upload
+- [ ] Board powers on
+- [ ] Firmware uploads successfully
+- [ ] Serial output is visible
 
-1. Open `BASE.ino` in the Arduino IDE.
-2. Select the correct board and port.
-3. Install the required libraries.
-4. Verify/compile.
-5. Upload to the flight controller.
+## Sensors
 
-## Safety checklist
+- [ ] Pressure readings change with altitude
+- [ ] Temperature sensors return valid values
 
-Before running the mission:
-- Test servos without payload attached.
-- Confirm valve open/closed angles.
-- Confirm heater output pins with a multimeter.
-- Confirm temperature sensor ordering.
-- Confirm SD logging creates `log.csv`.
-- Confirm pressure sensor readings are reasonable.
-- Run a dry test using safe altitude thresholds.
+## Actuators
 
-## Known TODOs
+- [ ] Servos move correctly (no payload attached)
+- [ ] Heating pads switch on/off correctly
+- [ ] Fan turns on/off
 
-- Replace placeholder release-valve servo pins in `Config.h`.
-- Document wiring in `docs/hardware.md`.
-- Add example `log.csv`.
-- Add a mission-state diagram.
+## Logging
+
+- [ ] SD card initializes
+- [ ] `log.csv` is created
+- [ ] Data is written correctly
+
+---
+
+# Hardware
+
+See:
+
+```text
+hardware/
+```
+
+Contains:
+
+- CAD models (STL, STEP, SolidWorks)
+- Wiring diagrams
+- Schematics
+- Engineering calculations
+- Design justifications
+
+---
+
+# Documentation
+
+See:
+
+```text
+docs/ (in progress)
+```
+
+For:
+
+- Assembly instructions
+- Mission details
+- Testing procedures
+- Troubleshooting
+
+---
+
+# For New Contributors
+
+Start here:
+
+1. Read `docs/mission-overview.md`
+2. Read `firmware/BASE/Config.h`
+3. Read `firmware/BASE/mission/Mission.cpp`
+4. Build and upload firmware
+5. Run a dry test
+
+---
+
+# ❓ Troubleshooting
+
+### Upload fails
+
+- Press the Teensy reset button and try again
+- Ensure correct board is selected
+
+### Build errors
+
+- Run:
+  ```bash
+  pio run -t clean
+  ```
+- Rebuild
+
+### Sensors not working
+
+- Check wiring
+- Check pin assignments in `Config.h`
+
+---
+
+# Notes
+
+- This is a **mission-critical system** — always test before flight
+- Never attach payload when testing actuators
+- Validate configuration every time before deployment
